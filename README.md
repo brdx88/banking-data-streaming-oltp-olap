@@ -14,8 +14,9 @@ Confluent Cloud target:
 ## Project Structure
 
 ```text
-bank-nusantara-streaming/
+.
 ├── config/
+│   ├── confluent.env
 │   └── confluent.env.example
 ├── producers/
 │   ├── mobile_banking.py
@@ -29,6 +30,12 @@ bank-nusantara-streaming/
 │   └── events.py
 ├── utils/
 │   └── kafka_client.py
+├── context/
+│   ├── 00-project-overview.md
+│   ├── 01-architecture-context.md
+│   ├── 02-data-contracts.md
+│   ├── 03-environment-and-ops.md
+│   └── 04-implementation-roadmap.md
 ├── requirements.txt
 └── README.md
 ```

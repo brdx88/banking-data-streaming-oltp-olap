@@ -14,9 +14,10 @@ The project is intended to demonstrate a small but realistic event-driven data p
 ## Proposed Repository Structure
 
 ```text
-bank-nusantara-streaming/
+.
 ├── config/
-│   └── confluent.env
+│   ├── confluent.env
+│   └── confluent.env.example
 ├── producers/
 │   ├── mobile_banking.py
 │   ├── transaction.py
@@ -29,6 +30,12 @@ bank-nusantara-streaming/
 │   └── events.py
 ├── utils/
 │   └── kafka_client.py
+├── context/
+│   ├── 00-project-overview.md
+│   ├── 01-architecture-context.md
+│   ├── 02-data-contracts.md
+│   ├── 03-environment-and-ops.md
+│   └── 04-implementation-roadmap.md
 └── README.md
 ```
 
