@@ -64,15 +64,15 @@ Examples:
 
 Keep topics aligned to source domains first:
 
-- `bni.mobile_banking.events`
-- `bni.transaction.events`
-- `bni.customer_service.events`
+- `bank_nusantara.mobile_banking.events`
+- `bank_nusantara.transaction.events`
+- `bank_nusantara.customer_service.events`
 
 Optional downstream topics for derived outputs:
 
-- `bni.analytics.metrics`
-- `bni.fraud.alerts`
-- `bni.dw.dead_letter`
+- `bank_nusantara.analytics.metrics`
+- `bank_nusantara.fraud.alerts`
+- `bank_nusantara.dw.dead_letter`
 
 ## Consumer Responsibilities
 
@@ -80,7 +80,7 @@ Optional downstream topics for derived outputs:
 
 - Read from source event topics
 - Compute simple aggregates such as event counts, transaction volume, active users, complaint counts
-- Optionally publish summarized metrics to `bni.analytics.metrics`
+- Optionally publish summarized metrics to `bank_nusantara.analytics.metrics`
 
 ### `fraud_detection.py`
 
@@ -90,7 +90,7 @@ Optional downstream topics for derived outputs:
   - bursts of failed logins
   - rapid device changes
   - transactions in unusual locations
-- Publish alerts to `bni.fraud.alerts` and/or log them
+- Publish alerts to `bank_nusantara.fraud.alerts` and/or log them
 
 ### `data_warehouse.py`
 

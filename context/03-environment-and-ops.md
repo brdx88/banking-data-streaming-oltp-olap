@@ -15,15 +15,15 @@ SASL_MECHANISM=PLAIN
 SASL_USERNAME=<confluent-api-key>
 SASL_PASSWORD=<confluent-api-secret>
 
-KAFKA_TOPIC_MOBILE=bni.mobile_banking.events
-KAFKA_TOPIC_TRANSACTION=bni.transaction.events
-KAFKA_TOPIC_CUSTOMER_SERVICE=bni.customer_service.events
-KAFKA_TOPIC_ANALYTICS=bni.analytics.metrics
-KAFKA_TOPIC_FRAUD_ALERTS=bni.fraud.alerts
+KAFKA_TOPIC_MOBILE=bank_nusantara.mobile_banking.events
+KAFKA_TOPIC_TRANSACTION=bank_nusantara.transaction.events
+KAFKA_TOPIC_CUSTOMER_SERVICE=bank_nusantara.customer_service.events
+KAFKA_TOPIC_ANALYTICS=bank_nusantara.analytics.metrics
+KAFKA_TOPIC_FRAUD_ALERTS=bank_nusantara.fraud.alerts
 
-KAFKA_CONSUMER_GROUP_ANALYTICS=bni-analytics-group
-KAFKA_CONSUMER_GROUP_FRAUD=bni-fraud-group
-KAFKA_CONSUMER_GROUP_DW=bni-dw-group
+KAFKA_CONSUMER_GROUP_ANALYTICS=bank-nusantara-analytics-group
+KAFKA_CONSUMER_GROUP_FRAUD=bank-nusantara-fraud-group
+KAFKA_CONSUMER_GROUP_DW=bank-nusantara-dw-group
 
 GOOGLE_APPLICATION_CREDENTIALS=<absolute-path-to-service-account-json>
 BIGQUERY_PROJECT_ID=<gcp-project-id>
