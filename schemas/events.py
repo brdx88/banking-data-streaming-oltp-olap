@@ -28,14 +28,14 @@ class BaseEvent:
 
 @dataclass(slots=True)
 class MobileBankingEvent(BaseEvent):
-    event_domain: str = "mobile_banking"
+    event_domain: str = field(default="mobile_banking", init=False)
 
 
 @dataclass(slots=True)
 class TransactionEvent(BaseEvent):
-    event_domain: str = "transaction"
+    event_domain: str = field(default="transaction", init=False)
 
 
 @dataclass(slots=True)
 class CustomerServiceEvent(BaseEvent):
-    event_domain: str = "customer_service"
+    event_domain: str = field(default="customer_service", init=False)
