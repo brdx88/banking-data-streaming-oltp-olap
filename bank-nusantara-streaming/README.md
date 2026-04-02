@@ -2,6 +2,15 @@
 
 Python event streaming simulation for a banking use case using Confluent Cloud and BigQuery.
 
+Confluent Cloud target:
+
+- Environment: `bank-nusantara-streaming`
+- Cluster: `bank-nusantara-kafka`
+- Topics:
+  - `transaction-events`
+  - `mobile-banking-activity`
+  - `cs-interactions`
+
 ## Project Structure
 
 ```text
@@ -40,6 +49,12 @@ cp config/confluent.env.example config/confluent.env
 ```
 
 4. Fill in Confluent Cloud and BigQuery credentials.
+
+## Kafka Topics
+
+- `transaction-events` for financial transactions
+- `mobile-banking-activity` for digital channel events
+- `cs-interactions` for customer service interactions
 
 ## Run Producers
 

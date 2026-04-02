@@ -1,8 +1,4 @@
+config/confluent.env
+venv/
 __pycache__/
 *.pyc
-.venv/
-.env
-config/confluent.env
-*.log
-*.local
-.DS_Store

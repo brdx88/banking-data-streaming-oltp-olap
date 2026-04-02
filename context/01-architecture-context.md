@@ -60,19 +60,21 @@ Examples:
 - card_block_request
 - profile_update_request
 
-## Recommended Topic Strategy
+## Topic Strategy
 
-Keep topics aligned to source domains first:
+Use the Confluent Cloud topics that have already been created in the `bank-nusantara-streaming` environment on the `bank-nusantara-kafka` cluster.
 
-- `bank_nusantara.mobile_banking.events`
-- `bank_nusantara.transaction.events`
-- `bank_nusantara.customer_service.events`
+Source topics:
+
+- `mobile-banking-activity` with 3 partitions
+- `transaction-events` with 3 partitions
+- `cs-interactions` with 2 partitions
 
 Optional downstream topics for derived outputs:
 
-- `bank_nusantara.analytics.metrics`
-- `bank_nusantara.fraud.alerts`
-- `bank_nusantara.dw.dead_letter`
+- `analytics-metrics`
+- `fraud-alerts`
+- `dw-dead-letter`
 
 ## Consumer Responsibilities
 
@@ -80,7 +82,7 @@ Optional downstream topics for derived outputs:
 
 - Read from source event topics
 - Compute simple aggregates such as event counts, transaction volume, active users, complaint counts
-- Optionally publish summarized metrics to `bank_nusantara.analytics.metrics`
+- Optionally publish summarized metrics to `analytics-metrics`
 
 ### `fraud_detection.py`
 
@@ -90,7 +92,7 @@ Optional downstream topics for derived outputs:
   - bursts of failed logins
   - rapid device changes
   - transactions in unusual locations
-- Publish alerts to `bank_nusantara.fraud.alerts` and/or log them
+- Publish alerts to `fraud-alerts` and/or log them
 
 ### `data_warehouse.py`
 

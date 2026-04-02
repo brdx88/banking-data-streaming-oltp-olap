@@ -6,6 +6,11 @@ Path:
 
 `config/confluent.env`
 
+Confluent Cloud setup:
+
+- Environment: `bank-nusantara-streaming`
+- Cluster: `bank-nusantara-kafka`
+
 Suggested variables:
 
 ```env
@@ -15,11 +20,12 @@ SASL_MECHANISM=PLAIN
 SASL_USERNAME=<confluent-api-key>
 SASL_PASSWORD=<confluent-api-secret>
 
-KAFKA_TOPIC_MOBILE=bank_nusantara.mobile_banking.events
-KAFKA_TOPIC_TRANSACTION=bank_nusantara.transaction.events
-KAFKA_TOPIC_CUSTOMER_SERVICE=bank_nusantara.customer_service.events
-KAFKA_TOPIC_ANALYTICS=bank_nusantara.analytics.metrics
-KAFKA_TOPIC_FRAUD_ALERTS=bank_nusantara.fraud.alerts
+KAFKA_TOPIC_MOBILE=mobile-banking-activity
+KAFKA_TOPIC_TRANSACTION=transaction-events
+KAFKA_TOPIC_CUSTOMER_SERVICE=cs-interactions
+KAFKA_TOPIC_ANALYTICS=analytics-metrics
+KAFKA_TOPIC_FRAUD_ALERTS=fraud-alerts
+KAFKA_TOPIC_DW_DEAD_LETTER=dw-dead-letter
 
 KAFKA_CONSUMER_GROUP_ANALYTICS=bank-nusantara-analytics-group
 KAFKA_CONSUMER_GROUP_FRAUD=bank-nusantara-fraud-group
