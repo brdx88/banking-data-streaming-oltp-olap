@@ -57,6 +57,27 @@ cp config/confluent.env.example config/confluent.env
 
 4. Fill in Confluent Cloud and BigQuery credentials.
 
+## BigQuery Setup
+
+1. Place the BigQuery service account key in `config/secrets/`.
+2. Keep `config/secrets/` and `config/confluent.env` out of git.
+3. Set these values in `config/confluent.env`:
+
+```env
+GOOGLE_APPLICATION_CREDENTIALS=D:\path\to\config\secrets\bank-nusantara-bq-writer.json
+BIGQUERY_PROJECT_ID=serious-music-469407-f1
+BIGQUERY_DATASET=bank_nusantara_streaming
+BIGQUERY_TABLE_RAW_EVENTS=raw_events
+```
+
+4. Create the BigQuery dataset if it does not exist yet:
+
+```text
+bank_nusantara_streaming
+```
+
+5. Create the raw events table using [sql/bigquery_raw_events.sql](/d:/OneDrive/Documents/07-Bank%20Negara%20Indonesia/09-Big%20Data%20Engineer/exploring_kafka_confluent_bigquery/sql/bigquery_raw_events.sql).
+
 ## Kafka Topics
 
 - `transaction-events` for financial transactions
@@ -111,6 +132,31 @@ Notes:
 - Fraud detection consumer successfully flagged a high-value transaction
 - Mobile banking producer successfully published to `mobile-banking-activity`
 - Customer service producer successfully published to `cs-interactions`
+
+## Next BigQuery Test
+
+After the dataset and table are created:
+
+```bash
+python consumers/data_warehouse.py --count 1
+python producers/transaction.py --once
+```
+
+If BigQuery auth hangs for a long time, check for a bogus local proxy:
+
+```powershell
+echo $env:HTTP_PROXY
+echo $env:HTTPS_PROXY
+```
+
+If you see `http://127.0.0.1:9`, clear it before retrying:
+
+```powershell
+Remove-Item Env:HTTP_PROXY -ErrorAction Ignore
+Remove-Item Env:HTTPS_PROXY -ErrorAction Ignore
+Remove-Item Env:http_proxy -ErrorAction Ignore
+Remove-Item Env:https_proxy -ErrorAction Ignore
+```
 
 ## Current Scope
 

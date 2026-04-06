@@ -15,6 +15,9 @@ if str(ROOT_DIR) not in sys.path:
 from utils.kafka_client import build_consumer, deserialize_event, load_config, require_env
 
 
+BOGUS_PROXY = "http://127.0.0.1:9"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Consume Kafka events and load them into BigQuery.")
     parser.add_argument("--once", action="store_true", help="Consume exactly 1 message and stop.")
@@ -42,9 +45,22 @@ def build_row(event: dict) -> dict:
     }
 
 
+def insert_row(client: bigquery.Client, table_id: str, row: dict) -> list[dict]:
+    table = client.get_table(table_id)
+    return client.insert_rows(table=table, rows=[row])
+
+
+def clear_bogus_proxy_settings() -> None:
+    for key in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
+        if os.environ.get(key) == BOGUS_PROXY:
+            os.environ.pop(key, None)
+            print(f"[data_warehouse] cleared bogus proxy setting: {key}")
+
+
 def main() -> None:
     args = parse_args()
     load_config()
+    clear_bogus_proxy_settings()
     group_id = require_env("KAFKA_CONSUMER_GROUP_DW")
     topics = [
         require_env("KAFKA_TOPIC_MOBILE"),
@@ -63,14 +79,13 @@ def main() -> None:
         "GOOGLE_APPLICATION_CREDENTIALS",
         require_env("GOOGLE_APPLICATION_CREDENTIALS"),
     )
-
-    client = bigquery.Client(project=project_id)
     consumer = build_consumer(group_id=group_id)
     consumer.subscribe(topics)
 
     print(f"[data_warehouse] listening to topics={topics}")
     print(f"[data_warehouse] target table={table_id}")
     try:
+        client = bigquery.Client(project=project_id)
         while True:
             message = consumer.poll(1.0)
             if message is None:
@@ -81,7 +96,7 @@ def main() -> None:
 
             event = deserialize_event(message.value())
             row = build_row(event)
-            errors = client.insert_rows_json(table_id, [row])
+            errors = insert_row(client, table_id, row)
             if errors:
                 print(f"[data_warehouse] insert failed: {errors}")
             else:

@@ -1,4 +1,5 @@
 config/confluent.env
+config/secrets/
 venv/
 __pycache__/
 *.pyc
