@@ -16,6 +16,16 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Consume analytics events from Kafka topics.")
     parser.add_argument("--once", action="store_true", help="Consume exactly 1 message and stop.")
     parser.add_argument("--count", type=int, help="Consume N messages and stop.")
+    parser.add_argument(
+        "--group-id-suffix",
+        help="Append a suffix to the consumer group id for isolated testing.",
+    )
+    parser.add_argument(
+        "--offset-reset",
+        choices=("earliest", "latest"),
+        default="earliest",
+        help="Where to start when the consumer group has no committed offset.",
+    )
     args = parser.parse_args()
     if args.count is not None and args.count < 1:
         parser.error("--count must be at least 1.")
@@ -28,6 +38,8 @@ def main() -> None:
     args = parse_args()
     load_config()
     group_id = require_env("KAFKA_CONSUMER_GROUP_ANALYTICS")
+    if args.group_id_suffix:
+        group_id = f"{group_id}-{args.group_id_suffix}"
     topics = [
         require_env("KAFKA_TOPIC_MOBILE"),
         require_env("KAFKA_TOPIC_TRANSACTION"),
@@ -36,10 +48,11 @@ def main() -> None:
     target_count = 1 if args.once else args.count
     consumed_count = 0
     counts = Counter()
-    consumer = build_consumer(group_id=group_id)
+    consumer = build_consumer(group_id=group_id, auto_offset_reset=args.offset_reset)
     consumer.subscribe(topics)
 
     print(f"[analytics] listening to topics={topics}")
+    print(f"[analytics] group_id={group_id} offset_reset={args.offset_reset}")
     try:
         while True:
             message = consumer.poll(1.0)

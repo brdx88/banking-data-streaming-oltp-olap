@@ -118,12 +118,22 @@ python consumers/fraud_detection.py --count 1
 python consumers/data_warehouse.py --count 5
 ```
 
+For isolated testing without replaying old backlog:
+
+```bash
+python consumers/analytics.py --count 1 --offset-reset latest --group-id-suffix test1
+python consumers/fraud_detection.py --count 1 --offset-reset latest --group-id-suffix test1
+python consumers/data_warehouse.py --count 1 --offset-reset latest --group-id-suffix test1
+```
+
 Notes:
 
 - `--once` is equivalent to consuming or producing exactly 1 message.
 - `--count N` stops after `N` messages have been processed.
 - Producers still use `PRODUCER_INTERVAL_SECONDS` by default, but you can override it with `--interval-seconds`.
 - Consumers using `--count` wait until enough messages are available in the subscribed topic or topics.
+- `--group-id-suffix` helps isolate a test run from existing consumer offsets.
+- `--offset-reset latest` is useful when you only want newly produced events in a test run.
 
 ## Verified Smoke Tests
 
@@ -132,6 +142,30 @@ Notes:
 - Fraud detection consumer successfully flagged a high-value transaction
 - Mobile banking producer successfully published to `mobile-banking-activity`
 - Customer service producer successfully published to `cs-interactions`
+- Data warehouse consumer successfully inserted events into BigQuery `raw_events`
+
+## End-To-End Demo Flow
+
+1. Start a consumer with isolated offsets:
+
+```bash
+python consumers/data_warehouse.py --count 1 --offset-reset latest --group-id-suffix demo1
+```
+
+2. In a second terminal, produce one fresh event:
+
+```bash
+python producers/transaction.py --once
+```
+
+3. Verify the latest row in BigQuery:
+
+```sql
+SELECT *
+FROM `serious-music-469407-f1.bank_nusantara_streaming.raw_events`
+ORDER BY ingested_at DESC
+LIMIT 10;
+```
 
 ## Next BigQuery Test
 
