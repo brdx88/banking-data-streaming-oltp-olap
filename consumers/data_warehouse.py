@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import os
 import sys
 from datetime import datetime, timezone
@@ -12,6 +13,18 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from utils.kafka_client import build_consumer, deserialize_event, load_config, require_env
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Consume Kafka events and load them into BigQuery.")
+    parser.add_argument("--once", action="store_true", help="Consume exactly 1 message and stop.")
+    parser.add_argument("--count", type=int, help="Consume N messages and stop.")
+    args = parser.parse_args()
+    if args.count is not None and args.count < 1:
+        parser.error("--count must be at least 1.")
+    if args.once and args.count is not None:
+        parser.error("Use either --once or --count, not both.")
+    return args
 
 
 def build_row(event: dict) -> dict:
@@ -30,6 +43,7 @@ def build_row(event: dict) -> dict:
 
 
 def main() -> None:
+    args = parse_args()
     load_config()
     group_id = require_env("KAFKA_CONSUMER_GROUP_DW")
     topics = [
@@ -37,6 +51,8 @@ def main() -> None:
         require_env("KAFKA_TOPIC_TRANSACTION"),
         require_env("KAFKA_TOPIC_CUSTOMER_SERVICE"),
     ]
+    target_count = 1 if args.once else args.count
+    consumed_count = 0
 
     project_id = require_env("BIGQUERY_PROJECT_ID")
     dataset = require_env("BIGQUERY_DATASET")
@@ -70,6 +86,10 @@ def main() -> None:
                 print(f"[data_warehouse] insert failed: {errors}")
             else:
                 print(f"[data_warehouse] inserted event_id={row['event_id']}")
+            consumed_count += 1
+            if target_count is not None and consumed_count >= target_count:
+                print(f"[data_warehouse] completed consumed_count={consumed_count}")
+                break
     except KeyboardInterrupt:
         print("[data_warehouse] stopping")
     finally:

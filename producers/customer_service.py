@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import os
 import random
 import sys
@@ -12,6 +13,23 @@ if str(ROOT_DIR) not in sys.path:
 
 from schemas.events import CustomerServiceEvent
 from utils.kafka_client import build_producer, load_config, require_env, serialize_event
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Produce customer service events to Kafka.")
+    parser.add_argument("--once", action="store_true", help="Produce exactly 1 message and stop.")
+    parser.add_argument("--count", type=int, help="Produce N messages and stop.")
+    parser.add_argument(
+        "--interval-seconds",
+        type=float,
+        help="Override PRODUCER_INTERVAL_SECONDS for this run.",
+    )
+    args = parser.parse_args()
+    if args.count is not None and args.count < 1:
+        parser.error("--count must be at least 1.")
+    if args.once and args.count is not None:
+        parser.error("Use either --once or --count, not both.")
+    return args
 
 
 def generate_service_event() -> CustomerServiceEvent:
@@ -50,10 +68,13 @@ def generate_service_event() -> CustomerServiceEvent:
 
 
 def main() -> None:
+    args = parse_args()
     load_config()
     topic = require_env("KAFKA_TOPIC_CUSTOMER_SERVICE")
-    interval_seconds = float(os.getenv("PRODUCER_INTERVAL_SECONDS", "3"))
+    interval_seconds = args.interval_seconds or float(os.getenv("PRODUCER_INTERVAL_SECONDS", "3"))
+    target_count = 1 if args.once else args.count
     producer = build_producer()
+    sent_count = 0
 
     print(f"[customer_service] producing to topic={topic}")
     while True:
@@ -62,6 +83,10 @@ def main() -> None:
         producer.poll(0)
         producer.flush()
         print(f"[customer_service] sent event_id={event['event_id']} type={event['event_type']}")
+        sent_count += 1
+        if target_count is not None and sent_count >= target_count:
+            print(f"[customer_service] completed sent_count={sent_count}")
+            break
         time.sleep(interval_seconds)
 
 
