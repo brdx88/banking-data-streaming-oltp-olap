@@ -88,6 +88,9 @@ bank_nusantara_streaming
 - `transaction-events` for financial transactions
 - `mobile-banking-activity` for digital channel events
 - `cs-interactions` for customer service interactions
+- `analytics-metrics` for derived analytics output
+- `fraud-alerts` for fraud alert events
+- `dw-dead-letter` for warehouse insert failures
 
 ## Run Producers
 
@@ -139,6 +142,10 @@ Notes:
 - Consumers using `--count` wait until enough messages are available in the subscribed topic or topics.
 - `--group-id-suffix` helps isolate a test run from existing consumer offsets.
 - `--offset-reset latest` is useful when you only want newly produced events in a test run.
+- Source producers now publish with a Kafka message key based on `account_id` or `customer_id`.
+- `analytics.py` can publish derived metric events to `analytics-metrics` when that topic exists.
+- `fraud_detection.py` can publish alert events to `fraud-alerts` when that topic exists.
+- `data_warehouse.py` retries BigQuery inserts and can publish failures to `dw-dead-letter` when that topic exists.
 
 ## Verified Smoke Tests
 
@@ -148,6 +155,14 @@ Notes:
 - Mobile banking producer successfully published to `mobile-banking-activity`
 - Customer service producer successfully published to `cs-interactions`
 - Data warehouse consumer successfully inserted events into BigQuery `raw_events`
+
+## Production-Like Streaming Features
+
+- Kafka message keys for better partition affinity and customer/account ordering
+- Derived analytics event publishing
+- Fraud alert event publishing
+- BigQuery insert retry before failure
+- Dead-letter publishing for warehouse failures
 
 ## End-To-End Demo Flow
 

@@ -8,7 +8,18 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from utils.kafka_client import build_consumer, deserialize_event, load_config, require_env
+from utils.kafka_client import (
+    build_consumer,
+    build_event_envelope,
+    build_producer,
+    choose_message_key,
+    deserialize_event,
+    load_config,
+    normalize_message_key,
+    produce_json,
+    require_env,
+    topic_exists,
+)
 
 
 HIGH_VALUE_THRESHOLD = 10_000_000
@@ -53,13 +64,17 @@ def main() -> None:
     if args.group_id_suffix:
         group_id = f"{group_id}-{args.group_id_suffix}"
     topic = require_env("KAFKA_TOPIC_TRANSACTION")
+    alerts_topic = require_env("KAFKA_TOPIC_FRAUD_ALERTS")
     target_count = 1 if args.once else args.count
     consumed_count = 0
     consumer = build_consumer(group_id=group_id, auto_offset_reset=args.offset_reset)
+    producer = build_producer()
+    alerts_topic_available = topic_exists(producer, alerts_topic)
     consumer.subscribe([topic])
 
     print(f"[fraud] listening to topic={topic}")
     print(f"[fraud] group_id={group_id} offset_reset={args.offset_reset}")
+    print(f"[fraud] alerts_topic={alerts_topic} available={alerts_topic_available}")
     try:
         while True:
             message = consumer.poll(1.0)
@@ -70,12 +85,41 @@ def main() -> None:
                 continue
 
             event = deserialize_event(message.value())
+            source_key = normalize_message_key(message.key())
             suspicious, reason = is_suspicious(event)
             if suspicious:
                 print(
                     f"[fraud] alert event_id={event['event_id']} "
-                    f"customer_id={event['customer_id']} reason={reason}"
+                    f"customer_id={event['customer_id']} reason={reason} key={source_key}"
                 )
+                if alerts_topic_available:
+                    alert_event = build_event_envelope(
+                        event_type="fraud_alert_created",
+                        event_domain="fraud_detection",
+                        customer_id=event.get("customer_id"),
+                        account_id=event.get("account_id"),
+                        source_system="fraud-detection-consumer",
+                        trace_id=event.get("trace_id"),
+                        payload={
+                            "source_event_id": event.get("event_id"),
+                            "source_event_type": event.get("event_type"),
+                            "source_topic": message.topic(),
+                            "alert_reason": reason,
+                            "severity": "high",
+                            "amount": event.get("payload", {}).get("amount"),
+                            "location": event.get("payload", {}).get("location"),
+                        },
+                    )
+                    remaining = produce_json(
+                        producer,
+                        alerts_topic,
+                        alert_event,
+                        key=choose_message_key(alert_event),
+                    )
+                    print(
+                        f"[fraud] published alert_event_id={alert_event['event_id']} "
+                        f"to={alerts_topic} remaining={remaining}"
+                    )
             consumed_count += 1
             if target_count is not None and consumed_count >= target_count:
                 print(f"[fraud] completed consumed_count={consumed_count}")

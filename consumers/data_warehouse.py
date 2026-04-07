@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -12,10 +13,23 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from utils.kafka_client import build_consumer, deserialize_event, load_config, require_env
+from utils.kafka_client import (
+    build_consumer,
+    build_event_envelope,
+    build_producer,
+    choose_message_key,
+    deserialize_event,
+    load_config,
+    normalize_message_key,
+    produce_json,
+    require_env,
+    topic_exists,
+)
 
 
 BOGUS_PROXY = "http://127.0.0.1:9"
+INSERT_RETRY_ATTEMPTS = 3
+INSERT_RETRY_DELAY_SECONDS = 2
 
 
 def parse_args() -> argparse.Namespace:
@@ -67,6 +81,27 @@ def clear_bogus_proxy_settings() -> None:
             print(f"[data_warehouse] cleared bogus proxy setting: {key}")
 
 
+def insert_row_with_retry(client: bigquery.Client, table_id: str, row: dict) -> list[dict]:
+    last_error: Exception | None = None
+    for attempt in range(1, INSERT_RETRY_ATTEMPTS + 1):
+        try:
+            errors = insert_row(client, table_id, row)
+            if not errors:
+                return []
+            last_error = RuntimeError(str(errors))
+            print(f"[data_warehouse] insert attempt={attempt} returned errors={errors}")
+        except Exception as exc:
+            last_error = exc
+            print(f"[data_warehouse] insert attempt={attempt} raised error={exc}")
+
+        if attempt < INSERT_RETRY_ATTEMPTS:
+            time.sleep(INSERT_RETRY_DELAY_SECONDS)
+
+    if last_error is None:
+        return [{"message": "Unknown insert failure"}]
+    return [{"message": str(last_error)}]
+
+
 def main() -> None:
     args = parse_args()
     load_config()
@@ -79,6 +114,7 @@ def main() -> None:
         require_env("KAFKA_TOPIC_TRANSACTION"),
         require_env("KAFKA_TOPIC_CUSTOMER_SERVICE"),
     ]
+    dlq_topic = require_env("KAFKA_TOPIC_DW_DEAD_LETTER")
     target_count = 1 if args.once else args.count
     consumed_count = 0
 
@@ -92,11 +128,14 @@ def main() -> None:
         require_env("GOOGLE_APPLICATION_CREDENTIALS"),
     )
     consumer = build_consumer(group_id=group_id, auto_offset_reset=args.offset_reset)
+    producer = build_producer()
+    dlq_topic_available = topic_exists(producer, dlq_topic)
     consumer.subscribe(topics)
 
     print(f"[data_warehouse] listening to topics={topics}")
     print(f"[data_warehouse] target table={table_id}")
     print(f"[data_warehouse] group_id={group_id} offset_reset={args.offset_reset}")
+    print(f"[data_warehouse] dlq_topic={dlq_topic} available={dlq_topic_available}")
     try:
         client = bigquery.Client(project=project_id)
         while True:
@@ -109,9 +148,39 @@ def main() -> None:
 
             event = deserialize_event(message.value())
             row = build_row(event)
-            errors = insert_row(client, table_id, row)
+            errors = insert_row_with_retry(client, table_id, row)
             if errors:
                 print(f"[data_warehouse] insert failed: {errors}")
+                if dlq_topic_available:
+                    dlq_event = build_event_envelope(
+                        event_type="warehouse_insert_failed",
+                        event_domain="data_warehouse",
+                        customer_id=event.get("customer_id"),
+                        account_id=event.get("account_id"),
+                        source_system="data-warehouse-consumer",
+                        trace_id=event.get("trace_id"),
+                        payload={
+                            "source_event_id": event.get("event_id"),
+                            "source_event_type": event.get("event_type"),
+                            "source_topic": message.topic(),
+                            "source_partition": message.partition(),
+                            "source_offset": message.offset(),
+                            "source_key": normalize_message_key(message.key()),
+                            "target_table": table_id,
+                            "insert_errors": errors,
+                            "original_event": event,
+                        },
+                    )
+                    remaining = produce_json(
+                        producer,
+                        dlq_topic,
+                        dlq_event,
+                        key=choose_message_key(dlq_event),
+                    )
+                    print(
+                        f"[data_warehouse] published dlq_event_id={dlq_event['event_id']} "
+                        f"to={dlq_topic} remaining={remaining}"
+                    )
             else:
                 print(f"[data_warehouse] inserted event_id={row['event_id']}")
             consumed_count += 1

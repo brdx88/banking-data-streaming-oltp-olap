@@ -12,7 +12,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from schemas.events import TransactionEvent
-from utils.kafka_client import build_producer, load_config, require_env, serialize_event
+from utils.kafka_client import build_producer, choose_message_key, load_config, produce_json, require_env
 
 
 def parse_args() -> argparse.Namespace:
@@ -67,12 +67,12 @@ def main() -> None:
     print(f"[transaction] producing to topic={topic}")
     while True:
         event = generate_transaction_event().to_dict()
-        producer.produce(topic, value=serialize_event(event))
-        producer.poll(0)
-        producer.flush()
+        message_key = choose_message_key(event)
+        remaining = produce_json(producer, topic, event, key=message_key)
         print(
             f"[transaction] sent event_id={event['event_id']} "
-            f"type={event['event_type']} amount={event['payload']['amount']}"
+            f"type={event['event_type']} amount={event['payload']['amount']} "
+            f"key={message_key} remaining={remaining}"
         )
         sent_count += 1
         if target_count is not None and sent_count >= target_count:
