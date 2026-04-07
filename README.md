@@ -77,6 +77,11 @@ bank_nusantara_streaming
 ```
 
 5. Create the raw events table using [sql/bigquery_raw_events.sql](/d:/OneDrive/Documents/07-Bank%20Negara%20Indonesia/09-Big%20Data%20Engineer/exploring_kafka_confluent_bigquery/sql/bigquery_raw_events.sql).
+6. Create the curated transaction view using [sql/bigquery_curated_transactions_view.sql](/d:/OneDrive/Documents/07-Bank%20Negara%20Indonesia/09-Big%20Data%20Engineer/exploring_kafka_confluent_bigquery/sql/bigquery_curated_transactions_view.sql).
+7. Create the daily transaction summary view using [sql/bigquery_transaction_daily_summary_view.sql](/d:/OneDrive/Documents/07-Bank%20Negara%20Indonesia/09-Big%20Data%20Engineer/exploring_kafka_confluent_bigquery/sql/bigquery_transaction_daily_summary_view.sql).
+8. Create the curated mobile banking view using [sql/bigquery_curated_mobile_banking_view.sql](/d:/OneDrive/Documents/07-Bank%20Negara%20Indonesia/09-Big%20Data%20Engineer/exploring_kafka_confluent_bigquery/sql/bigquery_curated_mobile_banking_view.sql).
+9. Create the curated customer service view using [sql/bigquery_curated_customer_service_view.sql](/d:/OneDrive/Documents/07-Bank%20Negara%20Indonesia/09-Big%20Data%20Engineer/exploring_kafka_confluent_bigquery/sql/bigquery_curated_customer_service_view.sql).
+10. Use [sql/bigquery_kpi_queries.sql](/d:/OneDrive/Documents/07-Bank%20Negara%20Indonesia/09-Big%20Data%20Engineer/exploring_kafka_confluent_bigquery/sql/bigquery_kpi_queries.sql) for analytics validation and dashboard starter queries.
 
 ## Kafka Topics
 
@@ -167,6 +172,72 @@ ORDER BY ingested_at DESC
 LIMIT 10;
 ```
 
+## BigQuery Analytics Layer
+
+Raw ingestion lands in:
+
+- `serious-music-469407-f1.bank_nusantara_streaming.raw_events`
+
+Curated transaction layer:
+
+- `serious-music-469407-f1.bank_nusantara_streaming.curated_transaction_events`
+
+Curated mobile banking layer:
+
+- `serious-music-469407-f1.bank_nusantara_streaming.curated_mobile_banking_events`
+
+Curated customer service layer:
+
+- `serious-music-469407-f1.bank_nusantara_streaming.curated_customer_service_events`
+
+Daily aggregate layer:
+
+- `serious-music-469407-f1.bank_nusantara_streaming.transaction_daily_summary`
+
+Useful validation queries:
+
+```sql
+SELECT *
+FROM `serious-music-469407-f1.bank_nusantara_streaming.curated_transaction_events`
+ORDER BY ingested_at DESC
+LIMIT 10;
+```
+
+```sql
+SELECT *
+FROM `serious-music-469407-f1.bank_nusantara_streaming.transaction_daily_summary`
+ORDER BY event_date DESC, total_amount DESC
+LIMIT 20;
+```
+
+```sql
+SELECT
+  transaction_type,
+  COUNT(*) AS transaction_count,
+  SUM(amount) AS total_amount
+FROM `serious-music-469407-f1.bank_nusantara_streaming.curated_transaction_events`
+GROUP BY transaction_type
+ORDER BY total_amount DESC;
+```
+
+```sql
+SELECT *
+FROM `serious-music-469407-f1.bank_nusantara_streaming.curated_mobile_banking_events`
+ORDER BY ingested_at DESC
+LIMIT 10;
+```
+
+```sql
+SELECT *
+FROM `serious-music-469407-f1.bank_nusantara_streaming.curated_customer_service_events`
+ORDER BY ingested_at DESC
+LIMIT 10;
+```
+
+You can also run the bundled KPI query pack:
+
+- [sql/bigquery_kpi_queries.sql](/d:/OneDrive/Documents/07-Bank%20Negara%20Indonesia/09-Big%20Data%20Engineer/exploring_kafka_confluent_bigquery/sql/bigquery_kpi_queries.sql)
+
 ## Next BigQuery Test
 
 After the dataset and table are created:
@@ -197,4 +268,9 @@ Remove-Item Env:https_proxy -ErrorAction Ignore
 - JSON event production to Confluent Cloud
 - Simple rule-based fraud screening
 - Basic analytics logging
-- BigQuery sink scaffold for raw event ingestion
+- BigQuery raw event ingestion
+- BigQuery curated transaction view
+- BigQuery curated mobile banking view
+- BigQuery curated customer service view
+- BigQuery daily transaction summary view
+- BigQuery KPI starter queries
