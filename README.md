@@ -7,9 +7,12 @@ Confluent Cloud target:
 - Environment: `bank-nusantara-streaming`
 - Cluster: `bank-nusantara-kafka`
 - Topics:
-  - `transaction-events`
-  - `mobile-banking-activity`
-  - `cs-interactions`
+  - `transaction-events` with 3 partitions
+  - `mobile-banking-activity` with 3 partitions
+  - `cs-interactions` with 2 partitions
+  - `analytics-metrics` with 1 partition
+  - `fraud-alerts` with 1 partition
+  - `dw-dead-letter` with 1 partition
 
 ## Project Structure
 
@@ -68,6 +71,7 @@ GOOGLE_APPLICATION_CREDENTIALS=D:\path\to\config\secrets\bank-nusantara-bq-write
 BIGQUERY_PROJECT_ID=serious-music-469407-f1
 BIGQUERY_DATASET=bank_nusantara_streaming
 BIGQUERY_TABLE_RAW_EVENTS=raw_events
+BIGQUERY_TABLE_REALTIME_KPI=realtime_financial_kpis
 ```
 
 4. Create the BigQuery dataset if it does not exist yet:
@@ -81,7 +85,9 @@ bank_nusantara_streaming
 7. Create the daily transaction summary view using [sql/bigquery_transaction_daily_summary_view.sql](/d:/OneDrive/Documents/07-Bank%20Negara%20Indonesia/09-Big%20Data%20Engineer/exploring_kafka_confluent_bigquery/sql/bigquery_transaction_daily_summary_view.sql).
 8. Create the curated mobile banking view using [sql/bigquery_curated_mobile_banking_view.sql](/d:/OneDrive/Documents/07-Bank%20Negara%20Indonesia/09-Big%20Data%20Engineer/exploring_kafka_confluent_bigquery/sql/bigquery_curated_mobile_banking_view.sql).
 9. Create the curated customer service view using [sql/bigquery_curated_customer_service_view.sql](/d:/OneDrive/Documents/07-Bank%20Negara%20Indonesia/09-Big%20Data%20Engineer/exploring_kafka_confluent_bigquery/sql/bigquery_curated_customer_service_view.sql).
-10. Use [sql/bigquery_kpi_queries.sql](/d:/OneDrive/Documents/07-Bank%20Negara%20Indonesia/09-Big%20Data%20Engineer/exploring_kafka_confluent_bigquery/sql/bigquery_kpi_queries.sql) for analytics validation and dashboard starter queries.
+10. Create the real-time KPI datamart table using [sql/bigquery_realtime_financial_kpi_table.sql](/d:/OneDrive/Documents/07-Bank%20Negara%20Indonesia/09-Big%20Data%20Engineer/exploring_kafka_confluent_bigquery/sql/bigquery_realtime_financial_kpi_table.sql).
+11. Create the KPI latest view using [sql/bigquery_realtime_financial_kpi_view.sql](/d:/OneDrive/Documents/07-Bank%20Negara%20Indonesia/09-Big%20Data%20Engineer/exploring_kafka_confluent_bigquery/sql/bigquery_realtime_financial_kpi_view.sql).
+12. Use [sql/bigquery_kpi_queries.sql](/d:/OneDrive/Documents/07-Bank%20Negara%20Indonesia/09-Big%20Data%20Engineer/exploring_kafka_confluent_bigquery/sql/bigquery_kpi_queries.sql) for analytics validation and dashboard starter queries.
 
 ## Kafka Topics
 
@@ -91,6 +97,40 @@ bank_nusantara_streaming
 - `analytics-metrics` for derived analytics output
 - `fraud-alerts` for fraud alert events
 - `dw-dead-letter` for warehouse insert failures
+
+## Recommended Topic Setup
+
+Recommended partitions:
+
+- `transaction-events`: `3`
+- `mobile-banking-activity`: `3`
+- `cs-interactions`: `2`
+- `analytics-metrics`: `1`
+- `fraud-alerts`: `1`
+- `dw-dead-letter`: `1`
+
+Reasoning:
+
+- Source topics get `2-3` partitions for realistic parallelism while staying easy to debug.
+- Derived topics and dead-letter topics stay at `1` partition to reduce operational noise and keep free-tier usage simple.
+- Producers now publish with a Kafka key based on `account_id` or `customer_id`, so per-customer or per-account ordering stays more stable within a partition.
+
+Confluent Cloud checklist:
+
+1. Open cluster `bank-nusantara-kafka`
+2. Create `transaction-events` with `3` partitions
+3. Create `mobile-banking-activity` with `3` partitions
+4. Create `cs-interactions` with `2` partitions
+5. Create `analytics-metrics` with `1` partition
+6. Create `fraud-alerts` with `1` partition
+7. Create `dw-dead-letter` with `1` partition
+
+Optional retention guidance:
+
+- Source topics: keep default retention first
+- `analytics-metrics`: shorter retention is fine
+- `fraud-alerts`: medium retention is useful for review
+- `dw-dead-letter`: keep longer than other derived topics so failures are easier to investigate
 
 ## Run Producers
 
@@ -115,6 +155,7 @@ python producers/customer_service.py --once
 python consumers/analytics.py
 python consumers/fraud_detection.py
 python consumers/data_warehouse.py
+python consumers/analytics_datamart.py
 ```
 
 For controlled testing:
@@ -124,6 +165,7 @@ python consumers/analytics.py --once
 python consumers/analytics.py --count 3
 python consumers/fraud_detection.py --count 1
 python consumers/data_warehouse.py --count 5
+python consumers/analytics_datamart.py --count 5
 ```
 
 For isolated testing without replaying old backlog:
@@ -132,6 +174,7 @@ For isolated testing without replaying old backlog:
 python consumers/analytics.py --count 1 --offset-reset latest --group-id-suffix test1
 python consumers/fraud_detection.py --count 1 --offset-reset latest --group-id-suffix test1
 python consumers/data_warehouse.py --count 1 --offset-reset latest --group-id-suffix test1
+python consumers/analytics_datamart.py --count 1 --offset-reset latest --group-id-suffix test1
 ```
 
 Notes:
@@ -146,6 +189,7 @@ Notes:
 - `analytics.py` can publish derived metric events to `analytics-metrics` when that topic exists.
 - `fraud_detection.py` can publish alert events to `fraud-alerts` when that topic exists.
 - `data_warehouse.py` retries BigQuery inserts and can publish failures to `dw-dead-letter` when that topic exists.
+- `analytics_datamart.py` aggregates real-time KPIs and writes to BigQuery for dashboard use.
 
 ## Verified Smoke Tests
 
@@ -208,6 +252,11 @@ Curated customer service layer:
 Daily aggregate layer:
 
 - `serious-music-469407-f1.bank_nusantara_streaming.transaction_daily_summary`
+
+Real-time KPI datamart:
+
+- `serious-music-469407-f1.bank_nusantara_streaming.realtime_financial_kpis`
+- `serious-music-469407-f1.bank_nusantara_streaming.realtime_financial_kpi_latest`
 
 Useful validation queries:
 
@@ -289,3 +338,4 @@ Remove-Item Env:https_proxy -ErrorAction Ignore
 - BigQuery curated customer service view
 - BigQuery daily transaction summary view
 - BigQuery KPI starter queries
+- BigQuery real-time KPI datamart table

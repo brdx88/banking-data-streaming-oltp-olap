@@ -30,6 +30,7 @@ from utils.kafka_client import (
 BOGUS_PROXY = "http://127.0.0.1:9"
 INSERT_RETRY_ATTEMPTS = 3
 INSERT_RETRY_DELAY_SECONDS = 2
+DEFAULT_BIGQUERY_TIMEOUT_SECONDS = 10.0
 
 
 def parse_args() -> argparse.Namespace:
@@ -46,11 +47,40 @@ def parse_args() -> argparse.Namespace:
         default="earliest",
         help="Where to start when the consumer group has no committed offset.",
     )
+    parser.add_argument(
+        "--insert-retry-attempts",
+        type=int,
+        default=INSERT_RETRY_ATTEMPTS,
+        help="Number of BigQuery insert attempts before giving up.",
+    )
+    parser.add_argument(
+        "--insert-retry-delay-seconds",
+        type=float,
+        default=INSERT_RETRY_DELAY_SECONDS,
+        help="Delay between BigQuery insert retry attempts.",
+    )
+    parser.add_argument(
+        "--bigquery-timeout-seconds",
+        type=float,
+        default=DEFAULT_BIGQUERY_TIMEOUT_SECONDS,
+        help="HTTP timeout for BigQuery API requests.",
+    )
+    parser.add_argument(
+        "--disable-bigquery-client-retry",
+        action="store_true",
+        help="Disable the BigQuery client library retry for faster failure during testing.",
+    )
     args = parser.parse_args()
     if args.count is not None and args.count < 1:
         parser.error("--count must be at least 1.")
     if args.once and args.count is not None:
         parser.error("Use either --once or --count, not both.")
+    if args.insert_retry_attempts < 1:
+        parser.error("--insert-retry-attempts must be at least 1.")
+    if args.insert_retry_delay_seconds < 0:
+        parser.error("--insert-retry-delay-seconds must be >= 0.")
+    if args.bigquery_timeout_seconds <= 0:
+        parser.error("--bigquery-timeout-seconds must be > 0.")
     return args
 
 
@@ -69,9 +99,17 @@ def build_row(event: dict) -> dict:
     }
 
 
-def insert_row(client: bigquery.Client, table_id: str, row: dict) -> list[dict]:
-    table = client.get_table(table_id)
-    return client.insert_rows(table=table, rows=[row])
+def insert_row(
+    client: bigquery.Client,
+    table_id: str,
+    row: dict,
+    *,
+    timeout_seconds: float,
+    disable_client_retry: bool,
+) -> list[dict]:
+    request_retry = None if disable_client_retry else bigquery.DEFAULT_RETRY
+    table = client.get_table(table_id, retry=request_retry, timeout=timeout_seconds)
+    return client.insert_rows(table=table, rows=[row], retry=request_retry, timeout=timeout_seconds)
 
 
 def clear_bogus_proxy_settings() -> None:
@@ -81,11 +119,26 @@ def clear_bogus_proxy_settings() -> None:
             print(f"[data_warehouse] cleared bogus proxy setting: {key}")
 
 
-def insert_row_with_retry(client: bigquery.Client, table_id: str, row: dict) -> list[dict]:
+def insert_row_with_retry(
+    client: bigquery.Client,
+    table_id: str,
+    row: dict,
+    *,
+    attempt_count: int,
+    delay_seconds: float,
+    timeout_seconds: float,
+    disable_client_retry: bool,
+) -> list[dict]:
     last_error: Exception | None = None
-    for attempt in range(1, INSERT_RETRY_ATTEMPTS + 1):
+    for attempt in range(1, attempt_count + 1):
         try:
-            errors = insert_row(client, table_id, row)
+            errors = insert_row(
+                client,
+                table_id,
+                row,
+                timeout_seconds=timeout_seconds,
+                disable_client_retry=disable_client_retry,
+            )
             if not errors:
                 return []
             last_error = RuntimeError(str(errors))
@@ -94,8 +147,8 @@ def insert_row_with_retry(client: bigquery.Client, table_id: str, row: dict) -> 
             last_error = exc
             print(f"[data_warehouse] insert attempt={attempt} raised error={exc}")
 
-        if attempt < INSERT_RETRY_ATTEMPTS:
-            time.sleep(INSERT_RETRY_DELAY_SECONDS)
+        if attempt < attempt_count:
+            time.sleep(delay_seconds)
 
     if last_error is None:
         return [{"message": "Unknown insert failure"}]
@@ -136,6 +189,12 @@ def main() -> None:
     print(f"[data_warehouse] target table={table_id}")
     print(f"[data_warehouse] group_id={group_id} offset_reset={args.offset_reset}")
     print(f"[data_warehouse] dlq_topic={dlq_topic} available={dlq_topic_available}")
+    print(
+        "[data_warehouse] insert_retry_attempts="
+        f"{args.insert_retry_attempts} insert_retry_delay_seconds={args.insert_retry_delay_seconds} "
+        f"bigquery_timeout_seconds={args.bigquery_timeout_seconds} "
+        f"disable_bigquery_client_retry={args.disable_bigquery_client_retry}"
+    )
     try:
         client = bigquery.Client(project=project_id)
         while True:
@@ -148,7 +207,15 @@ def main() -> None:
 
             event = deserialize_event(message.value())
             row = build_row(event)
-            errors = insert_row_with_retry(client, table_id, row)
+            errors = insert_row_with_retry(
+                client,
+                table_id,
+                row,
+                attempt_count=args.insert_retry_attempts,
+                delay_seconds=args.insert_retry_delay_seconds,
+                timeout_seconds=args.bigquery_timeout_seconds,
+                disable_client_retry=args.disable_bigquery_client_retry,
+            )
             if errors:
                 print(f"[data_warehouse] insert failed: {errors}")
                 if dlq_topic_available:

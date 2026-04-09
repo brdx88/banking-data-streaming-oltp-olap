@@ -57,6 +57,9 @@ The project is intended to demonstrate a small but realistic event-driven data p
 - `analytics.py`
   Consumes multiple business events and produces derived operational metrics, simple aggregates, or dashboard-ready summaries.
 
+- `analytics_datamart.py`
+  Consumes multiple business events and writes real-time KPI aggregates into BigQuery for dashboard consumption.
+
 - `fraud_detection.py`
   Applies rule-based anomaly checks to transaction and channel behavior events, then emits alert events or writes suspicious records.
 

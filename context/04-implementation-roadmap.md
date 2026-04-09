@@ -38,12 +38,14 @@ Definition of done:
 ## Phase 4: Consumers
 
 - Implement `consumers/analytics.py`
+- Implement `consumers/analytics_datamart.py`
 - Implement `consumers/fraud_detection.py`
 - Implement `consumers/data_warehouse.py`
 
 Definition of done:
 
 - Analytics consumer computes basic metrics
+- Datamart consumer writes real-time KPI aggregates into BigQuery
 - Fraud consumer emits rule-based alerts
 - Data warehouse consumer inserts records into BigQuery
 

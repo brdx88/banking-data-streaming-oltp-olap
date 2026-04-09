@@ -89,7 +89,14 @@ First version should log:
 ## Confluent Cloud Free Tier Considerations
 
 - Keep topic count small
-- Keep partition count simple, usually 1 for the demo
+- Keep partition count simple and intentional
+- Recommended partition plan for this project:
+  - `transaction-events`: 3
+  - `mobile-banking-activity`: 3
+  - `cs-interactions`: 2
+  - `analytics-metrics`: 1
+  - `fraud-alerts`: 1
+  - `dw-dead-letter`: 1
 - Avoid unnecessary high-frequency message generation
 - Expect quota limits and design for demo-scale throughput
 

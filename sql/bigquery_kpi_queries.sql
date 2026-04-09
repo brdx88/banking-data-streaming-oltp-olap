@@ -61,3 +61,32 @@ FROM `serious-music-469407-f1.bank_nusantara_streaming.curated_customer_service_
 WHERE case_status IN ('open', 'in_progress')
 ORDER BY event_timestamp DESC
 LIMIT 100;
+
+-- KPI 7: real-time KPI snapshot (last 15 minutes)
+SELECT
+  window_start,
+  event_domain,
+  kpi_name,
+  transaction_type,
+  activity_action,
+  case_type,
+  case_priority,
+  status,
+  currency,
+  location,
+  SUM(kpi_value) AS kpi_value,
+  SUM(record_count) AS record_count
+FROM `serious-music-469407-f1.bank_nusantara_streaming.realtime_financial_kpis`
+WHERE window_start >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 15 MINUTE)
+GROUP BY
+  window_start,
+  event_domain,
+  kpi_name,
+  transaction_type,
+  activity_action,
+  case_type,
+  case_priority,
+  status,
+  currency,
+  location
+ORDER BY window_start DESC;
